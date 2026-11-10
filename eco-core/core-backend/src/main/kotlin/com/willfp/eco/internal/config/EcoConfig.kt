@@ -58,10 +58,11 @@ open class EcoConfig(
     }
 
     override fun get(path: String): Any? {
-        val nearestPath = path.split(".")[0]
+        val separator = path.indexOf('.')
 
-        if (path.contains(".")) {
-            val remainingPath = path.removePrefix("${nearestPath}.")
+        if (separator >= 0) {
+            val nearestPath = path.substring(0, separator)
+            val remainingPath = path.substring(separator + 1)
 
             if (remainingPath.isEmpty()) {
                 return null
@@ -76,7 +77,7 @@ open class EcoConfig(
             }
         }
 
-        return values[nearestPath]
+        return values[path]
     }
 
     override fun set(

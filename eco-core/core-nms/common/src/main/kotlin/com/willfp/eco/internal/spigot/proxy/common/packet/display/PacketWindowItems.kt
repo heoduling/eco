@@ -7,10 +7,10 @@ import com.willfp.eco.core.packet.PacketEvent
 import com.willfp.eco.core.packet.PacketListener
 import com.willfp.eco.internal.spigot.proxy.common.asBukkitStack
 import com.willfp.eco.internal.spigot.proxy.common.asNMSStack
+import com.willfp.eco.internal.spigot.proxy.common.toNMS
 import com.willfp.eco.internal.spigot.proxy.common.packet.display.frame.DisplayFrame
 import com.willfp.eco.internal.spigot.proxy.common.packet.display.frame.lastDisplayFrame
-import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
+import io.netty.util.AttributeKey
 import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
@@ -18,7 +18,7 @@ import org.bukkit.inventory.ItemStack
 open class PacketWindowItems(
     private val plugin: EcoPlugin
 ) : PacketListener {
-    private val lastKnownWindowIDs = ConcurrentHashMap<UUID, Int>()
+    private val windowIdKey = AttributeKey.valueOf<Int>("eco:last_window_id")
 
     private val field = ClientboundContainerSetContentPacket::class.java
         .declaredFields
@@ -36,16 +36,7 @@ open class PacketWindowItems(
 
         val windowId = packet.containerId
 
-        val lastKnownID = lastKnownWindowIDs[player.uniqueId]
-        lastKnownWindowIDs[player.uniqueId] = windowId
-
-        // If there is any change in window ID at any point,
-        // Remove the last display frame to prevent any potential conflicts.
-        // If the window ID is not zero (not a player inventory), then remove too,
-        // as GUIs are not player inventories.
-        if (lastKnownID != windowId || windowId != 0) {
-            player.lastDisplayFrame = DisplayFrame.EMPTY
-        }
+        updateWindowID(player, windowId)
 
         val itemStacks = packet.items.mapTo(ArrayList(packet.items.size)) { it.asBukkitStack() }
 
@@ -54,6 +45,16 @@ open class PacketWindowItems(
         field.set(packet, newItems.map { it.asNMSStack() })
     }
 
+
+    protected fun updateWindowID(player: Player, windowId: Int) {
+        // A channel belongs to one connection. No UUID history survives on this
+        // long-lived listener, and an old connection cannot overwrite a reconnect.
+        val channel = player.toNMS().connection.connection.channel
+        val lastKnownID = channel.attr(windowIdKey).getAndSet(windowId)
+        if (lastKnownID != windowId || windowId != 0) {
+            player.lastDisplayFrame = DisplayFrame.EMPTY
+        }
+    }
 
     protected fun modifyWindowItems(
         itemStacks: MutableList<ItemStack>,

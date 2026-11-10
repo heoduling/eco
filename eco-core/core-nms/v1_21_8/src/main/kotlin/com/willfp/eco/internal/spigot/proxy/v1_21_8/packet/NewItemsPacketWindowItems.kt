@@ -6,17 +6,11 @@ import com.willfp.eco.core.packet.PacketEvent
 import com.willfp.eco.internal.spigot.proxy.common.asBukkitStack
 import com.willfp.eco.internal.spigot.proxy.common.asNMSStack
 import com.willfp.eco.internal.spigot.proxy.common.packet.display.PacketWindowItems
-import com.willfp.eco.internal.spigot.proxy.common.packet.display.frame.DisplayFrame
-import com.willfp.eco.internal.spigot.proxy.common.packet.display.frame.lastDisplayFrame
-import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket
 
 class NewItemsPacketWindowItems(
     plugin: EcoPlugin
 ) : PacketWindowItems(plugin) {
-    private val lastKnownWindowIDs = ConcurrentHashMap<UUID, Int>()
-
     override fun onSend(event: PacketEvent) {
         val packet = event.handle as? ClientboundContainerSetContentPacket ?: return
         val player = event.player
@@ -25,16 +19,7 @@ class NewItemsPacketWindowItems(
 
         val windowId = packet.containerId
 
-        val lastKnownID = lastKnownWindowIDs[player.uniqueId]
-        lastKnownWindowIDs[player.uniqueId] = windowId
-
-        // If there is any change in window ID at any point,
-        // Remove the last display frame to prevent any potential conflicts.
-        // If the window ID is not zero (not a player inventory), then remove too,
-        // as GUIs are not player inventories.
-        if (lastKnownID != windowId || windowId != 0) {
-            player.lastDisplayFrame = DisplayFrame.EMPTY
-        }
+        updateWindowID(player, windowId)
 
         val itemStacks = packet.items.mapTo(ArrayList(packet.items.size)) { it.asBukkitStack() }
 

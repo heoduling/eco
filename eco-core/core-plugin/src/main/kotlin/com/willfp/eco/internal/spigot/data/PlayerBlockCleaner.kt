@@ -1,6 +1,7 @@
 package com.willfp.eco.internal.spigot.data
 
 import com.willfp.eco.core.EcoPlugin
+import com.willfp.eco.internal.spigot.proxies.ExtendedPersistentDataContainerFactoryProxy
 import org.bukkit.Chunk
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
@@ -20,6 +21,7 @@ import java.util.concurrent.atomic.AtomicLong
 class PlayerBlockCleaner(
     private val plugin: EcoPlugin
 ) : Listener {
+    private val blockKeyPattern = Regex("^-?[0-9a-f]{1,8}$")
     private val removed = AtomicLong()
     private val scanned = AtomicLong()
     private val totalRemoved = AtomicLong()
@@ -54,14 +56,14 @@ class PlayerBlockCleaner(
         }
 
         val namespace = plugin.namespacedKeyFactory.create("dummy").namespace
-        val keys = pdc.keys.filter { it.namespace == namespace }
+        val keys = plugin.getProxy(ExtendedPersistentDataContainerFactoryProxy::class.java)
+            .keysInNamespace(pdc, namespace)
 
         if (keys.isEmpty()) {
             return 0
         }
 
         var count = 0
-        val blockKeyPattern = Regex("^-?[0-9a-f]{1,8}$")
 
         for (key in keys) {
             // Match block marker format (hex hash)

@@ -5,6 +5,7 @@ import com.willfp.eco.internal.spigot.proxies.ExtendedPersistentDataContainerFac
 import java.lang.reflect.Field
 import net.minecraft.nbt.Tag
 import org.bukkit.Material
+import org.bukkit.NamespacedKey
 import org.bukkit.craftbukkit.inventory.CraftItemStack
 import org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer
 import org.bukkit.craftbukkit.persistence.CraftPersistentDataTypeRegistry
@@ -43,6 +44,34 @@ class ExtendedPersistentDataContainerFactory : ExtendedPersistentDataContainerFa
 
     override fun newPdc(): PersistentDataContainer {
         return CraftPersistentDataContainer(registry)
+    }
+
+    override fun keysInNamespace(pdc: PersistentDataContainer, namespace: String): Collection<NamespacedKey> {
+        if (pdc !is CraftPersistentDataContainer) {
+            return super.keysInNamespace(pdc, namespace)
+        }
+
+        val keys = ArrayList<NamespacedKey>()
+        for (raw in pdc.raw.keys) {
+            val separator = raw.indexOf(':')
+            // CraftPDC ignores raw keys without a colon. Preserve its rejection of
+            // malformed namespaced keys, even those belonging to other plugins.
+            if (separator < 0) continue
+            if (separator == 0 || separator == raw.lastIndex || raw.length >= 32768
+                || raw.indices.any { index ->
+                    val char = raw[index]
+                    index != separator && char !in 'a'..'z' && char !in '0'..'9'
+                        && char != '.' && char != '_' && char != '-'
+                        && !(index > separator && char == '/')
+                }
+            ) {
+                return super.keysInNamespace(pdc, namespace)
+            }
+            if (separator == namespace.length && raw.startsWith(namespace)) {
+                keys.add(NamespacedKey(namespace, raw.substring(separator + 1)))
+            }
+        }
+        return keys
     }
 
     inner class EcoPersistentDataContainer(
